@@ -1,8 +1,9 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.safeviewkids.v1
 
-import android.os.Bundle
 import android.content.Intent
+import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,25 +24,49 @@ enum class Screen {
 
 class MainActivity : ComponentActivity() {
 
- private fun openUsageAccessSettings() {
-    startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
- }   override fun onCreate(savedInstanceState: Bundle?) {
+    private fun openUsageAccessSettings() {
+        startActivity(
+            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+        )
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
-            SafeViewKidsApp()
+            SafeViewKidsApp(
+                onUsageAccess = {
+                    openUsageAccessSettings()
+                }
+            )
         }
     }
 }
 
 @Composable
-fun SafeViewKidsApp() {
+fun SafeViewKidsApp(
+    onUsageAccess: () -> Unit
+) {
 
-    var screen by remember { mutableStateOf(Screen.HOME) }
-    var pin by remember { mutableStateOf("") }
-    var savedPin by remember { mutableStateOf("") }
-    var selectedApps by remember { mutableStateOf(setOf<String>()) }
-    var limitSeconds by remember { mutableIntStateOf(180) }
+    var screen by remember {
+        mutableStateOf(Screen.HOME)
+    }
+
+    var pin by remember {
+        mutableStateOf("")
+    }
+
+    var savedPin by remember {
+        mutableStateOf("")
+    }
+
+    var selectedApps by remember {
+        mutableStateOf(setOf<String>())
+    }
+
+    var limitSeconds by remember {
+        mutableIntStateOf(180)
+    }
 
     MaterialTheme {
 
@@ -50,18 +75,25 @@ fun SafeViewKidsApp() {
             Screen.HOME -> HomeScreen(
                 selectedApps = selectedApps,
                 limitSeconds = limitSeconds,
-                onSetup = { screen = Screen.SETUP },
-                onTest = { screen = Screen.LIMIT }
-                onUsageAccess = { openUsageAccessSettings() }
+                onSetup = {
+                    screen = Screen.SETUP
+                },
+                onTest = {
+                    screen = Screen.LIMIT
+                },
+                onUsageAccess = onUsageAccess
             )
 
             Screen.SETUP -> SetupScreen(
                 pin = pin,
                 onPinChange = {
-                    pin = it.filter(Char::isDigit).take(6)
+                    pin = it
+                        .filter(Char::isDigit)
+                        .take(6)
                 },
                 selectedApps = selectedApps,
                 onToggleApp = { app ->
+
                     selectedApps =
                         if (app in selectedApps) {
                             selectedApps - app
@@ -74,6 +106,7 @@ fun SafeViewKidsApp() {
                     limitSeconds = it
                 },
                 onSave = {
+
                     if (pin.length == 6) {
                         savedPin = pin
                         screen = Screen.HOME
@@ -96,6 +129,7 @@ fun SafeViewKidsApp() {
 
             Screen.UNLOCK -> UnlockScreen(
                 onSuccess = { entered ->
+
                     if (
                         entered == savedPin &&
                         savedPin.isNotEmpty()
@@ -135,12 +169,14 @@ fun HomeScreen(
                 .padding(padding)
                 .padding(20.dp)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement =
+                Arrangement.spacedBy(14.dp)
         ) {
 
             Text(
                 "Version 1 MVP",
-                style = MaterialTheme.typography.headlineSmall
+                style =
+                    MaterialTheme.typography.headlineSmall
             )
 
             Text(
@@ -170,12 +206,14 @@ fun HomeScreen(
             ) {
                 Text("Test Timer")
             }
-Button(
-    onClick = onUsageAccess,
-    modifier = Modifier.fillMaxWidth()
-) {
-    Text("Enable Usage Access")
-}
+
+            Button(
+                onClick = onUsageAccess,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Enable Usage Access")
+            }
+
             Text(
                 "This version demonstrates the parental-control UI and timer flow."
             )
@@ -214,7 +252,8 @@ fun SetupScreen(
             modifier = Modifier
                 .padding(padding)
                 .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement =
+                Arrangement.spacedBy(12.dp)
         ) {
 
             item {
@@ -222,6 +261,7 @@ fun SetupScreen(
             }
 
             item {
+
                 OutlinedTextField(
                     value = pin,
                     onValueChange = onPinChange,
@@ -257,8 +297,10 @@ fun SetupScreen(
             }
 
             item {
+
                 Text(
-                    "Session limit: ${limitSeconds / 60} minutes"
+                    "Session limit: " +
+                        "${limitSeconds / 60} minutes"
                 )
             }
 
@@ -283,7 +325,9 @@ fun SetupScreen(
                                 onLimitChange(seconds)
                             },
                             label = {
-                                Text("${seconds / 60}m")
+                                Text(
+                                    "${seconds / 60}m"
+                                )
                             }
                         )
                     }
@@ -349,7 +393,8 @@ fun LimitScreen(
 
             Text(
                 "Time remaining",
-                style = MaterialTheme.typography.titleLarge
+                style =
+                    MaterialTheme.typography.titleLarge
             )
 
             Spacer(
@@ -361,7 +406,8 @@ fun LimitScreen(
                     remaining / 60,
                     remaining % 60
                 ),
-                style = MaterialTheme.typography.displayLarge
+                style =
+                    MaterialTheme.typography.displayLarge
             )
 
             Spacer(
@@ -369,7 +415,8 @@ fun LimitScreen(
             )
 
             Text(
-                "When the timer reaches zero, this session will be blocked."
+                "When the timer reaches zero, " +
+                    "this session will be blocked."
             )
         }
     }
@@ -380,9 +427,7 @@ fun BlockedScreen(
     onUnlock: () -> Unit
 ) {
 
-    Scaffold {
-
-        padding ->
+    Scaffold { padding ->
 
         Column(
             modifier = Modifier
@@ -397,7 +442,8 @@ fun BlockedScreen(
 
             Text(
                 "Screen time finished",
-                style = MaterialTheme.typography.headlineMedium
+                style =
+                    MaterialTheme.typography.headlineMedium
             )
 
             Spacer(
@@ -455,8 +501,9 @@ fun UnlockScreen(
             OutlinedTextField(
                 value = entered,
                 onValueChange = {
-                    entered =
-                        it.filter(Char::isDigit).take(6)
+                    entered = it
+                        .filter(Char::isDigit)
+                        .take(6)
                 },
                 label = {
                     Text("Parent PIN")
