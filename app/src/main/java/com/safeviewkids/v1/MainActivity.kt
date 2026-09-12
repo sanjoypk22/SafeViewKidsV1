@@ -23,7 +23,9 @@ enum class Screen {
 
 class MainActivity : ComponentActivity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+ private fun openUsageAccessSettings() {
+    startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+ }   override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
