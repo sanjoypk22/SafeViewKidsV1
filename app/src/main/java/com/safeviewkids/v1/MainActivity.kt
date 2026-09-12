@@ -52,6 +52,7 @@ fun SafeViewKidsApp() {
                 limitSeconds = limitSeconds,
                 onSetup = { screen = Screen.SETUP },
                 onTest = { screen = Screen.LIMIT }
+                onUsageAccess = { openUsageAccessSettings() }
             )
 
             Screen.SETUP -> SetupScreen(
@@ -115,7 +116,8 @@ fun HomeScreen(
     selectedApps: Set<String>,
     limitSeconds: Int,
     onSetup: () -> Unit,
-    onTest: () -> Unit
+    onTest: () -> Unit,
+    onUsageAccess: () -> Unit
 ) {
 
     Scaffold(
@@ -168,7 +170,12 @@ fun HomeScreen(
             ) {
                 Text("Test Timer")
             }
-
+Button(
+    onClick = onUsageAccess,
+    modifier = Modifier.fillMaxWidth()
+) {
+    Text("Enable Usage Access")
+}
             Text(
                 "This version demonstrates the parental-control UI and timer flow."
             )
