@@ -29,7 +29,9 @@ class MainActivity : ComponentActivity() {
             Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
         )
     }
-
+startForegroundService(
+    Intent(this, AppMonitorService::class.java)
+)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
