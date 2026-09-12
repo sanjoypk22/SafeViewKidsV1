@@ -2,6 +2,8 @@
 package com.safeviewkids.v1
 
 import android.os.Bundle
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import android.content.Intent
 import android.provider.Settings
