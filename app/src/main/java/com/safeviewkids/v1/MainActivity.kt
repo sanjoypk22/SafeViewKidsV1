@@ -3,6 +3,8 @@ package com.safeviewkids.v1
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
