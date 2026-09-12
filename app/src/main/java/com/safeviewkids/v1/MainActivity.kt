@@ -29,12 +29,11 @@ class MainActivity : ComponentActivity() {
             Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
         )
     }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
 startForegroundService(
     Intent(this, AppMonitorService::class.java)
 )
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
         setContent {
             SafeViewKidsApp(
                 onUsageAccess = {
