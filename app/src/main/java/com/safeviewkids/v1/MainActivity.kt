@@ -5,8 +5,6 @@ import android.os.Bundle
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.ComponentActivity
-import android.content.Intent
-import android.provider.Settings
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
