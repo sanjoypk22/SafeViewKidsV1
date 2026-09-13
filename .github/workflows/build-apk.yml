@@ -1,42 +1,78 @@
-name: Build SafeViewKids APK
+name: Build Signed Release APK
 
 on:
   workflow_dispatch:
   push:
-    branches: ["main", "master"]
+    branches:
+      - main
 
 jobs:
-  build:
+  build-release:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
+          cache: gradle
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.9"
+      - name: Make Gradle executable
+        run: chmod +x gradlew
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
 
-      - name: Install Android SDK packages
+      - name: Find Android Build Tools
+        id: buildtools
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME/build-tools/"* | sort -V | tail -n 1)
+          echo "path=$BUILD_TOOLS" >> "$GITHUB_OUTPUT"
 
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+      - name: Create signing keystore
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore "$RUNNER_TEMP/safeviewkids.jks" \
+            -storetype PKCS12 \
+            -alias safeviewkids \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass SafeViewKids123! \
+            -keypass SafeViewKids123! \
+            -dname "CN=SafeView Kids, O=SafeView Kids, C=IN"
+
+      - name: Align APK
+        run: |
+          "${{ steps.buildtools.outputs.path }}/zipalign" \
+            -p -f 4 \
+            app/build/outputs/apk/release/app-release-unsigned.apk \
+            "$RUNNER_TEMP/SafeViewKids-aligned.apk"
+
+      - name: Sign APK
+        run: |
+          "${{ steps.buildtools.outputs.path }}/apksigner" sign \
+            --ks "$RUNNER_TEMP/safeviewkids.jks" \
+            --ks-key-alias safeviewkids \
+            --ks-pass pass:SafeViewKids123! \
+            --key-pass pass:SafeViewKids123! \
+            --out "$RUNNER_TEMP/SafeViewKids-release.apk" \
+            "$RUNNER_TEMP/SafeViewKids-aligned.apk"
+
+      - name: Verify signature
+        run: |
+          "${{ steps.buildtools.outputs.path }}/apksigner" verify \
+            --verbose \
+            "$RUNNER_TEMP/SafeViewKids-release.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SafeViewKids-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: SafeViewKids-signed-release-apk
+          path: ${{ runner.temp }}/SafeViewKids-release.apk
+          if-no-files-found: error
