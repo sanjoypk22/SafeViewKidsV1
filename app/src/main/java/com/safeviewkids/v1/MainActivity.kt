@@ -24,25 +24,45 @@ enum class Screen {
 
 class MainActivity : ComponentActivity() {
 
+    private var usageAccessEnabled by mutableStateOf(false)
+
     private fun openUsageAccessSettings() {
         startActivity(
             Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
         )
     }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        usageAccessEnabled = UsageAccessHelper.hasUsageAccess(this)
+
         setContent {
             SafeViewKidsApp(
+                usageAccessEnabled = usageAccessEnabled,
                 onUsageAccess = {
-                    openUsageAccessSettings()
+                    if (!UsageAccessHelper.hasUsageAccess(this)) {
+                        openUsageAccessSettings()
+                    } else {
+                        usageAccessEnabled = true
+                    }
                 }
             )
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        usageAccessEnabled = UsageAccessHelper.hasUsageAccess(this)
+    }
+}
         }
     }
 }
 
 @Composable
 fun SafeViewKidsApp(
+    usageAccessEnabled: Boolean,
     onUsageAccess: () -> Unit
 ) {
 
