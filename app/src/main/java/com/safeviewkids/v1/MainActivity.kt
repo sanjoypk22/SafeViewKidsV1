@@ -90,6 +90,7 @@ fun SafeViewKidsApp(
             Screen.HOME -> HomeScreen(
                 selectedApps = selectedApps,
                 limitSeconds = limitSeconds,
+                usageAccessEnabled = usageAccessEnabled,
                 onSetup = {
                     screen = Screen.SETUP
                 },
@@ -164,6 +165,7 @@ fun SafeViewKidsApp(
 fun HomeScreen(
     selectedApps: Set<String>,
     limitSeconds: Int,
+    usageAccessEnabled: Boolean,
     onSetup: () -> Unit,
     onTest: () -> Unit,
     onUsageAccess: () -> Unit
