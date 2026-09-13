@@ -55,10 +55,6 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         usageAccessEnabled = UsageAccessHelper.hasUsageAccess(this)
     }
-}
-        }
-    }
-}
 
 @Composable
 fun SafeViewKidsApp(
