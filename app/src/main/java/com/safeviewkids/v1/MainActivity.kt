@@ -52,9 +52,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onResume() {
-        super.onResume()
-        usageAccessEnabled = UsageAccessHelper.hasUsageAccess(this)
-    }
+    super.onResume()
+    usageAccessEnabled = UsageAccessHelper.hasUsageAccess(this)
+}
+}
 
 @Composable
 fun SafeViewKidsApp(
