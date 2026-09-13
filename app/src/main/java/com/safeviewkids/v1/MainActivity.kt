@@ -19,7 +19,11 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
 enum class Screen {
-    HOME, SETUP, LIMIT, BLOCKED, UNLOCK
+    HOME,
+    SETUP,
+    LIMIT,
+    BLOCKED,
+    UNLOCK
 }
 
 class MainActivity : ComponentActivity() {
@@ -41,10 +45,10 @@ class MainActivity : ComponentActivity() {
             SafeViewKidsApp(
                 usageAccessEnabled = usageAccessEnabled,
                 onUsageAccess = {
-                    if (!UsageAccessHelper.hasUsageAccess(this)) {
-                        openUsageAccessSettings()
-                    } else {
+                    if (UsageAccessHelper.hasUsageAccess(this)) {
                         usageAccessEnabled = true
+                    } else {
+                        openUsageAccessSettings()
                     }
                 }
             )
@@ -52,9 +56,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onResume() {
-    super.onResume()
-    usageAccessEnabled = UsageAccessHelper.hasUsageAccess(this)
-}
+        super.onResume()
+        usageAccessEnabled = UsageAccessHelper.hasUsageAccess(this)
+    }
 }
 
 @Composable
@@ -62,7 +66,6 @@ fun SafeViewKidsApp(
     usageAccessEnabled: Boolean,
     onUsageAccess: () -> Unit
 ) {
-
     var screen by remember {
         mutableStateOf(Screen.HOME)
     }
@@ -226,10 +229,25 @@ fun HomeScreen(
 
             Button(
                 onClick = onUsageAccess,
+                enabled = !usageAccessEnabled,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Enable Usage Access")
+                Text(
+                    if (usageAccessEnabled) {
+                        "Usage Access: Enabled"
+                    } else {
+                        "Enable Usage Access"
+                    }
+                )
             }
+
+            Text(
+                if (usageAccessEnabled) {
+                    "Usage Access permission is enabled."
+                } else {
+                    "Usage Access permission is required."
+                }
+            )
 
             Text(
                 "This version demonstrates the parental-control UI and timer flow."
