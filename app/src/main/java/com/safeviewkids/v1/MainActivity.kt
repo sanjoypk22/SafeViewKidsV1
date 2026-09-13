@@ -524,24 +524,41 @@ fun LimitScreen(
     onExpired: () -> Unit
 ) {
     var remaining by remember(totalSeconds) {
-        mutableIntStateOf(totalSeconds)
+        mutableIntStateOf(totalSeconds.coerceAtLeast(1))
     }
 
     LaunchedEffect(totalSeconds) {
 
-        while (remaining > 0) {
-            delay(1000)
-            remaining--
-        }
+        val endTime =
+            System.currentTimeMillis() +
+                    totalSeconds.coerceAtLeast(1) * 1000L
 
-        onExpired()
+        while (true) {
+
+            val leftMillis =
+                endTime - System.currentTimeMillis()
+
+            val leftSeconds =
+                ((leftMillis + 999L) / 1000L)
+                    .toInt()
+                    .coerceAtLeast(0)
+
+            remaining = leftSeconds
+
+            if (leftSeconds <= 0) {
+                onExpired()
+                break
+            }
+
+            delay(200)
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("Protected Session")
+                    Text("Test Timer")
                 }
             )
         }
@@ -560,11 +577,12 @@ fun LimitScreen(
 
             Text(
                 "Time remaining",
-                style = MaterialTheme.typography.titleLarge
+                style =
+                    MaterialTheme.typography.titleLarge
             )
 
             Spacer(
-                Modifier.height(12.dp)
+                modifier = Modifier.height(16.dp)
             )
 
             Text(
@@ -577,16 +595,23 @@ fun LimitScreen(
             )
 
             Spacer(
-                Modifier.height(16.dp)
+                modifier = Modifier.height(20.dp)
             )
 
             Text(
-                "This is the test timer. Real app blocking is handled by App Blocking."
+                "This is the Test Timer."
+            )
+
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            Text(
+                "When the timer reaches 00:00, the screen will change."
             )
         }
     }
 }
-
 @Composable
 fun BlockedScreen(
     onUnlock: () -> Unit
