@@ -17,6 +17,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import java.security.MessageDigest
+
+object SafeViewKidsPrefs {
+    const val PREFS_NAME = "safeviewkids_prefs"
+    const val KEY_PIN_HASH = "pin_hash"
+    const val KEY_SELECTED_APPS = "selected_apps"
+    const val KEY_LIMIT_SECONDS = "limit_seconds"
+    const val KEY_UNLOCK_UNTIL = "unlock_until"
+    const val SESSION_PREFIX = "session_start_"
+
+    val APP_PACKAGES = mapOf(
+        "YouTube" to "com.google.android.youtube",
+        "Instagram" to "com.instagram.android",
+        "Facebook" to "com.facebook.katana"
+    )
+
+    fun hashPin(pin: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256")
+            .digest(pin.toByteArray())
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+}
 
 enum class Screen {
     HOME,
@@ -29,27 +51,117 @@ enum class Screen {
 class MainActivity : ComponentActivity() {
 
     private var usageAccessEnabled by mutableStateOf(false)
+    private var accessibilityEnabled by mutableStateOf(false)
 
     private fun openUsageAccessSettings() {
-        startActivity(
-            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-        )
+        startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+    }
+
+    private fun openAccessibilitySettings() {
+        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val expected = android.content.ComponentName(
+            this,
+            AppBlockAccessibilityService::class.java
+        ).flattenToString()
+
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+
+        return enabledServices.split(":")
+            .any { it.equals(expected, ignoreCase = true) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         usageAccessEnabled = UsageAccessHelper.hasUsageAccess(this)
+        accessibilityEnabled = isAccessibilityServiceEnabled()
+
+        val prefs = getSharedPreferences(
+            SafeViewKidsPrefs.PREFS_NAME,
+            MODE_PRIVATE
+        )
+
+        val initialPinHash =
+            prefs.getString(SafeViewKidsPrefs.KEY_PIN_HASH, "") ?: ""
+
+        val initialSelectedApps =
+            prefs.getStringSet(
+                SafeViewKidsPrefs.KEY_SELECTED_APPS,
+                emptySet()
+            )?.toSet() ?: emptySet()
+
+        val initialLimitSeconds =
+            prefs.getInt(
+                SafeViewKidsPrefs.KEY_LIMIT_SECONDS,
+                180
+            )
+
+        val startBlocked =
+            intent.getBooleanExtra("blocked", false)
 
         setContent {
             SafeViewKidsApp(
+                startBlocked = startBlocked,
+                initialPinHash = initialPinHash,
+                initialSelectedApps = initialSelectedApps,
+                initialLimitSeconds = initialLimitSeconds,
                 usageAccessEnabled = usageAccessEnabled,
+                accessibilityEnabled = accessibilityEnabled,
+
                 onUsageAccess = {
                     if (UsageAccessHelper.hasUsageAccess(this)) {
                         usageAccessEnabled = true
                     } else {
                         openUsageAccessSettings()
                     }
+                },
+
+                onAccessibilityAccess = {
+                    if (isAccessibilityServiceEnabled()) {
+                        accessibilityEnabled = true
+                    } else {
+                        openAccessibilitySettings()
+                    }
+                },
+
+                onSaveSettings = { pin, apps, limit ->
+                    prefs.edit()
+                        .putString(
+                            SafeViewKidsPrefs.KEY_PIN_HASH,
+                            SafeViewKidsPrefs.hashPin(pin)
+                        )
+                        .putStringSet(
+                            SafeViewKidsPrefs.KEY_SELECTED_APPS,
+                            apps
+                        )
+                        .putInt(
+                            SafeViewKidsPrefs.KEY_LIMIT_SECONDS,
+                            limit
+                        )
+                        .apply()
+                },
+
+                onParentUnlock = {
+                    val edit = prefs.edit()
+                        .putLong(
+                            SafeViewKidsPrefs.KEY_UNLOCK_UNTIL,
+                            System.currentTimeMillis() +
+                                    10 * 60 * 1000L
+                        )
+
+                    SafeViewKidsPrefs.APP_PACKAGES.values.forEach { pkg ->
+                        edit.remove(
+                            SafeViewKidsPrefs.SESSION_PREFIX + pkg
+                        )
+                    }
+
+                    edit.apply()
                 }
             )
         }
@@ -57,62 +169,72 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        usageAccessEnabled = UsageAccessHelper.hasUsageAccess(this)
+        usageAccessEnabled =
+            UsageAccessHelper.hasUsageAccess(this)
+        accessibilityEnabled =
+            isAccessibilityServiceEnabled()
     }
 }
 
 @Composable
 fun SafeViewKidsApp(
+    startBlocked: Boolean,
+    initialPinHash: String,
+    initialSelectedApps: Set<String>,
+    initialLimitSeconds: Int,
     usageAccessEnabled: Boolean,
-    onUsageAccess: () -> Unit
+    accessibilityEnabled: Boolean,
+    onUsageAccess: () -> Unit,
+    onAccessibilityAccess: () -> Unit,
+    onSaveSettings: (String, Set<String>, Int) -> Unit,
+    onParentUnlock: () -> Unit
 ) {
     var screen by remember {
-        mutableStateOf(Screen.HOME)
+        mutableStateOf(
+            if (startBlocked) Screen.BLOCKED
+            else Screen.HOME
+        )
     }
 
-    var pin by remember {
-        mutableStateOf("")
-    }
+    var pin by remember { mutableStateOf("") }
 
-    var savedPin by remember {
-        mutableStateOf("")
+    var savedPinHash by remember {
+        mutableStateOf(initialPinHash)
     }
 
     var selectedApps by remember {
-        mutableStateOf(setOf<String>())
+        mutableStateOf(initialSelectedApps)
     }
 
     var limitSeconds by remember {
-        mutableIntStateOf(180)
+        mutableIntStateOf(initialLimitSeconds)
     }
 
     MaterialTheme {
-
         when (screen) {
 
             Screen.HOME -> HomeScreen(
                 selectedApps = selectedApps,
                 limitSeconds = limitSeconds,
                 usageAccessEnabled = usageAccessEnabled,
+                accessibilityEnabled = accessibilityEnabled,
                 onSetup = {
                     screen = Screen.SETUP
                 },
                 onTest = {
                     screen = Screen.LIMIT
                 },
-                onUsageAccess = onUsageAccess
+                onUsageAccess = onUsageAccess,
+                onAccessibilityAccess = onAccessibilityAccess
             )
 
             Screen.SETUP -> SetupScreen(
                 pin = pin,
                 onPinChange = {
-                    pin = it
-                        .filter(Char::isDigit)
-                        .take(6)
+                    pin = it.filter(Char::isDigit).take(6)
                 },
                 selectedApps = selectedApps,
                 onToggleApp = { app ->
-
                     selectedApps =
                         if (app in selectedApps) {
                             selectedApps - app
@@ -125,9 +247,17 @@ fun SafeViewKidsApp(
                     limitSeconds = it
                 },
                 onSave = {
-
                     if (pin.length == 6) {
-                        savedPin = pin
+                        savedPinHash =
+                            SafeViewKidsPrefs.hashPin(pin)
+
+                        onSaveSettings(
+                            pin,
+                            selectedApps,
+                            limitSeconds
+                        )
+
+                        pin = ""
                         screen = Screen.HOME
                     }
                 }
@@ -148,12 +278,14 @@ fun SafeViewKidsApp(
 
             Screen.UNLOCK -> UnlockScreen(
                 onSuccess = { entered ->
-
                     if (
-                        entered == savedPin &&
-                        savedPin.isNotEmpty()
+                        entered.length == 6 &&
+                        savedPinHash.isNotEmpty() &&
+                        SafeViewKidsPrefs.hashPin(entered) ==
+                        savedPinHash
                     ) {
-                        screen = Screen.LIMIT
+                        onParentUnlock()
+                        screen = Screen.HOME
                     }
                 },
                 onBack = {
@@ -169,11 +301,12 @@ fun HomeScreen(
     selectedApps: Set<String>,
     limitSeconds: Int,
     usageAccessEnabled: Boolean,
+    accessibilityEnabled: Boolean,
     onSetup: () -> Unit,
     onTest: () -> Unit,
-    onUsageAccess: () -> Unit
+    onUsageAccess: () -> Unit,
+    onAccessibilityAccess: () -> Unit
 ) {
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -189,23 +322,20 @@ fun HomeScreen(
                 .padding(padding)
                 .padding(20.dp)
                 .fillMaxSize(),
-            verticalArrangement =
-                Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
 
             Text(
-                "Version 1 MVP",
-                style =
-                    MaterialTheme.typography.headlineSmall
+                "Version 1 - App Blocking",
+                style = MaterialTheme.typography.headlineSmall
             )
 
             Text(
                 "Protected apps: ${
-                    if (selectedApps.isEmpty()) {
+                    if (selectedApps.isEmpty())
                         "None configured"
-                    } else {
+                    else
                         selectedApps.joinToString()
-                    }
                 }"
             )
 
@@ -233,24 +363,36 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    if (usageAccessEnabled) {
+                    if (usageAccessEnabled)
                         "Usage Access: Enabled"
-                    } else {
+                    else
                         "Enable Usage Access"
-                    }
+                )
+            }
+
+            Button(
+                onClick = onAccessibilityAccess,
+                enabled = !accessibilityEnabled,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (accessibilityEnabled)
+                        "App Blocking: Enabled"
+                    else
+                        "Enable App Blocking"
                 )
             }
 
             Text(
-                if (usageAccessEnabled) {
-                    "Usage Access permission is enabled."
+                if (accessibilityEnabled) {
+                    "Real app blocking is enabled."
                 } else {
-                    "Usage Access permission is required."
+                    "Enable App Blocking in Android Accessibility settings."
                 }
             )
 
             Text(
-                "This version demonstrates the parental-control UI and timer flow."
+                "After the session limit, a protected app is sent to the Home screen and SafeView Kids opens the Parent Unlock screen."
             )
         }
     }
@@ -266,7 +408,6 @@ fun SetupScreen(
     onLimitChange: (Int) -> Unit,
     onSave: () -> Unit
 ) {
-
     val apps = listOf(
         "YouTube",
         "Instagram",
@@ -287,8 +428,7 @@ fun SetupScreen(
             modifier = Modifier
                 .padding(padding)
                 .padding(20.dp),
-            verticalArrangement =
-                Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
             item {
@@ -296,7 +436,6 @@ fun SetupScreen(
             }
 
             item {
-
                 OutlinedTextField(
                     value = pin,
                     onValueChange = onPinChange,
@@ -332,10 +471,8 @@ fun SetupScreen(
             }
 
             item {
-
                 Text(
-                    "Session limit: " +
-                        "${limitSeconds / 60} minutes"
+                    "Session limit: ${limitSeconds / 60} minutes"
                 )
             }
 
@@ -360,9 +497,7 @@ fun SetupScreen(
                                 onLimitChange(seconds)
                             },
                             label = {
-                                Text(
-                                    "${seconds / 60}m"
-                                )
+                                Text("${seconds / 60}m")
                             }
                         )
                     }
@@ -388,7 +523,6 @@ fun LimitScreen(
     totalSeconds: Int,
     onExpired: () -> Unit
 ) {
-
     var remaining by remember(totalSeconds) {
         mutableIntStateOf(totalSeconds)
     }
@@ -396,9 +530,7 @@ fun LimitScreen(
     LaunchedEffect(totalSeconds) {
 
         while (remaining > 0) {
-
             delay(1000)
-
             remaining--
         }
 
@@ -428,12 +560,11 @@ fun LimitScreen(
 
             Text(
                 "Time remaining",
-                style =
-                    MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge
             )
 
             Spacer(
-                modifier = Modifier.height(12.dp)
+                Modifier.height(12.dp)
             )
 
             Text(
@@ -446,12 +577,11 @@ fun LimitScreen(
             )
 
             Spacer(
-                modifier = Modifier.height(16.dp)
+                Modifier.height(16.dp)
             )
 
             Text(
-                "When the timer reaches zero, " +
-                    "this session will be blocked."
+                "This is the test timer. Real app blocking is handled by App Blocking."
             )
         }
     }
@@ -461,7 +591,6 @@ fun LimitScreen(
 fun BlockedScreen(
     onUnlock: () -> Unit
 ) {
-
     Scaffold { padding ->
 
         Column(
@@ -482,15 +611,15 @@ fun BlockedScreen(
             )
 
             Spacer(
-                modifier = Modifier.height(12.dp)
+                Modifier.height(12.dp)
             )
 
             Text(
-                "The allowed video session has ended."
+                "The protected app has been blocked."
             )
 
             Spacer(
-                modifier = Modifier.height(24.dp)
+                Modifier.height(24.dp)
             )
 
             Button(
@@ -507,9 +636,12 @@ fun UnlockScreen(
     onSuccess: (String) -> Unit,
     onBack: () -> Unit
 ) {
-
     var entered by remember {
         mutableStateOf("")
+    }
+
+    var error by remember {
+        mutableStateOf(false)
     }
 
     Scaffold(
@@ -536,9 +668,11 @@ fun UnlockScreen(
             OutlinedTextField(
                 value = entered,
                 onValueChange = {
-                    entered = it
-                        .filter(Char::isDigit)
-                        .take(6)
+                    entered =
+                        it.filter(Char::isDigit)
+                            .take(6)
+
+                    error = false
                 },
                 label = {
                     Text("Parent PIN")
@@ -549,16 +683,25 @@ fun UnlockScreen(
             )
 
             Spacer(
-                modifier = Modifier.height(16.dp)
+                Modifier.height(16.dp)
             )
 
             Button(
                 onClick = {
-                    onSuccess(entered)
+                    val value = entered
+                    onSuccess(value)
+
+                    if (value.length == 6) {
+                        error = true
+                    }
                 },
                 enabled = entered.length == 6
             ) {
                 Text("Verify")
+            }
+
+            if (error) {
+                Text("Wrong Parent PIN")
             }
 
             TextButton(
