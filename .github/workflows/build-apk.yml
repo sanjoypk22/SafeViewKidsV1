@@ -8,24 +8,30 @@ on:
 
 jobs:
   build-release:
+    name: Build Signed Release APK
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
-      - name: Make Gradle executable
-        run: chmod +x gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Check Gradle
+        run: gradle --version
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease
+        run: gradle assembleRelease
 
       - name: Find Android Build Tools
         id: buildtools
@@ -50,7 +56,9 @@ jobs:
       - name: Align APK
         run: |
           "${{ steps.buildtools.outputs.path }}/zipalign" \
-            -p -f 4 \
+            -p \
+            -f \
+            4 \
             app/build/outputs/apk/release/app-release-unsigned.apk \
             "$RUNNER_TEMP/SafeViewKids-aligned.apk"
 
@@ -64,13 +72,13 @@ jobs:
             --out "$RUNNER_TEMP/SafeViewKids-release.apk" \
             "$RUNNER_TEMP/SafeViewKids-aligned.apk"
 
-      - name: Verify signature
+      - name: Verify APK signature
         run: |
           "${{ steps.buildtools.outputs.path }}/apksigner" verify \
             --verbose \
             "$RUNNER_TEMP/SafeViewKids-release.apk"
 
-      - name: Upload APK
+      - name: Upload Signed Release APK
         uses: actions/upload-artifact@v4
         with:
           name: SafeViewKids-signed-release-apk
